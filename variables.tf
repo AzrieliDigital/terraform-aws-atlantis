@@ -108,12 +108,6 @@ variable "alb_ingress_cidr_blocks" {
   default     = ["0.0.0.0/0"]
 }
 
-variable "alb_ingress_ipv6_cidr_blocks" {
-  description = "List of IPv6 CIDR ranges to use on all ingress rules of the ALB."
-  type        = list(string)
-  default     = ["::/0"]
-}
-
 variable "alb_log_bucket_name" {
   description = "S3 bucket (externally created) for storing load balancer access logs. Required if alb_logging_enabled is true."
   type        = string
@@ -181,15 +175,9 @@ variable "allow_github_webhooks" {
 }
 
 variable "github_webhooks_cidr_blocks" {
-  description = "List of IPv4 CIDR blocks used by GitHub webhooks" # This is hardcoded to avoid dependency on github provider. Source: https://api.github.com/meta
+  description = "List of CIDR blocks used by GitHub webhooks" # This is hardcoded to avoid dependency on github provider. Source: https://api.github.com/meta
   type        = list(string)
   default     = ["140.82.112.0/20", "185.199.108.0/22", "192.30.252.0/22", "143.55.64.0/20"]
-}
-
-variable "github_webhooks_ipv6_cidr_blocks" {
-  description = "List of IPv6 CIDR blocks used by GitHub webhooks" # This is hardcoded to avoid dependency on github provider. Source: https://api.github.com/meta
-  type        = list(string)
-  default     = ["2a0a:a440::/29", "2606:50c0::/32"]
 }
 
 variable "whitelist_unauthenticated_cidr_blocks" {
@@ -243,7 +231,7 @@ variable "route53_private_zone" {
 }
 
 variable "create_route53_record" {
-  description = "Whether to create Route53 A record for Atlantis"
+  description = "Whether to create Route53 record for Atlantis"
   type        = bool
   default     = true
 }
@@ -701,14 +689,39 @@ variable "ephemeral_storage_size" {
   }
 }
 
-variable "alb_ip_address_type" {
-  description = "The type of IP addresses used by the subnets for your load balancer. The possible values are ipv4 and dualstack"
-  type        = string
-  default     = "ipv4"
+# EFS
+variable "efs_encryption_enabled" {
+  description = "(Optional) If true, the disk will be encrypted for this Atlantis EFS storage. Default is true"
+  default     = true
+  type        = bool
 }
 
-variable "create_route53_aaaa_record" {
-  description = "Whether to create Route53 AAAA record for Atlantis"
-  type        = bool
-  default     = false
+variable "efs_kms_key_id" {
+  description = "(Optional) The ARN for the KMS encryption key you wish to use to encrypt this Atlantis EFS with. When specifying `efs_kms_key_id`, encrypted needs to be set to true."
+  default     = null
+  type        = string
+}
+
+variable "efs_performance_mode" {
+  description = "(Optional) The file system performance mode. Can be either `generalPurpose` or `maxIO` (Default: `generalPurpose`)."
+  default     = null
+  type        = string
+}
+
+variable "efs_additional_tags" {
+  description = "(Optional) Additional tags you would like to add to the EFS for this Atlanis instance"
+  default     = {}
+  type        = map(any)
+}
+
+variable "efs_provisioned_throughput_in_mibps" {
+  description = "(Optional) The throughput, measured in MiB/s, that you want to provision for the file system. Only applicable with throughput_mode set to provisioned."
+  type        = string
+  default     = null
+}
+
+variable "efs_throughput_mode" {
+  description = "(Optional) Throughput mode for the file system. Defaults to `bursting`. Valid values: `bursting`, `provisioned`. When using `provisioned`, also set `efs_provisioned_throughput_in_mibps`."
+  type        = string
+  default     = null
 }

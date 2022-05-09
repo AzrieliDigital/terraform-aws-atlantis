@@ -131,7 +131,7 @@ data "aws_partition" "current" {}
 data "aws_region" "current" {}
 
 data "aws_route53_zone" "this" {
-  count = var.create_route53_record || var.create_route53_aaaa_record ? 1 : 0
+  count = var.create_route53_record ? 1 : 0
 
   name         = var.route53_zone_name
   private_zone = var.route53_private_zone
@@ -234,8 +234,6 @@ module "alb" {
     prefix  = var.alb_log_location_prefix
   }
 
-  ip_address_type = var.alb_ip_address_type
-
   enable_deletion_protection = var.alb_enable_deletion_protection
 
   drop_invalid_header_fields = var.alb_drop_invalid_header_fields
@@ -331,8 +329,7 @@ module "alb_https_sg" {
   vpc_id      = local.vpc_id
   description = "Security group with HTTPS ports open for specific IPv4 CIDR block (or everybody), egress ports are all world open"
 
-  ingress_cidr_blocks      = sort(compact(concat(var.allow_github_webhooks ? var.github_webhooks_cidr_blocks : [], var.alb_ingress_cidr_blocks)))
-  ingress_ipv6_cidr_blocks = sort(compact(concat(var.allow_github_webhooks ? var.github_webhooks_ipv6_cidr_blocks : [], var.alb_ingress_ipv6_cidr_blocks)))
+  ingress_cidr_blocks = sort(compact(concat(var.allow_github_webhooks ? var.github_webhooks_cidr_blocks : [], var.alb_ingress_cidr_blocks)))
 
   tags = merge(local.tags, var.alb_https_security_group_tags)
 }
@@ -345,8 +342,7 @@ module "alb_http_sg" {
   vpc_id      = local.vpc_id
   description = "Security group with HTTP ports open for specific IPv4 CIDR block (or everybody), egress ports are all world open"
 
-  ingress_cidr_blocks      = sort(compact(concat(var.allow_github_webhooks ? var.github_webhooks_cidr_blocks : [], var.alb_ingress_cidr_blocks)))
-  ingress_ipv6_cidr_blocks = sort(compact(concat(var.allow_github_webhooks ? var.github_webhooks_ipv6_cidr_blocks : [], var.alb_ingress_ipv6_cidr_blocks)))
+  ingress_cidr_blocks = sort(compact(concat(var.allow_github_webhooks ? var.github_webhooks_cidr_blocks : [], var.alb_ingress_cidr_blocks)))
 
   tags = merge(local.tags, var.alb_http_security_group_tags)
 }
@@ -409,7 +405,7 @@ module "acm" {
 }
 
 ################################################################################
-# Route53 records
+# Route53 record
 ################################################################################
 resource "aws_route53_record" "atlantis" {
   count = var.create_route53_record ? 1 : 0
@@ -425,36 +421,33 @@ resource "aws_route53_record" "atlantis" {
   }
 }
 
-resource "aws_route53_record" "atlantis_aaaa" {
-  count = var.create_route53_aaaa_record ? 1 : 0
-
-  zone_id = data.aws_route53_zone.this[0].zone_id
-  name    = var.route53_record_name != null ? var.route53_record_name : var.name
-  type    = "AAAA"
-
-  alias {
-    name                   = module.alb.lb_dns_name
-    zone_id                = module.alb.lb_zone_id
-    evaluate_target_health = true
-  }
-}
-
 ################################################################################
 # EFS
 ################################################################################
-
 resource "aws_efs_file_system" "this" {
   count = var.enable_ephemeral_storage ? 0 : 1
 
+  encrypted  = var.efs_encryption_enabled
+  kms_key_id = var.efs_kms_key_id
+
+  performance_mode = var.efs_performance_mode
+
+  lifecycle_policy {
+    transition_to_ia = "AFTER_30_DAYS"
+  }
+
+  throughput_mode                 = var.efs_throughput_mode
+  provisioned_throughput_in_mibps = var.efs_provisioned_throughput_in_mibps
+
   creation_token = var.name
+
+  tags = merge(var.efs_additional_tags, local.tags)
+
 }
 
 resource "aws_efs_mount_target" "this" {
   # we coalescelist in order to specify the resource keys when we create the subnets using the VPC or they're specified for us.  This works around the for_each value depends on attributes which can't be determined until apply error
-  for_each = {
-    for k, v in zipmap(coalescelist(var.private_subnets, var.private_subnet_ids), local.private_subnet_ids) : k => v
-    if var.enable_ephemeral_storage == false
-  }
+  for_each = zipmap(coalescelist(var.private_subnets, var.private_subnet_ids), local.private_subnet_ids)
 
   file_system_id  = aws_efs_file_system.this[0].id
   subnet_id       = each.value
