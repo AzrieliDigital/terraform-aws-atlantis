@@ -725,3 +725,9 @@ variable "efs_throughput_mode" {
   type        = string
   default     = null
 }
+
+variable "runtime_platform" {
+  description = "Configuration block for runtime_platform that containers in your task may use."
+  type        = any
+  default     = {}
+}
